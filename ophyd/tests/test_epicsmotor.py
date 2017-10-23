@@ -17,7 +17,6 @@ def motor():
     m = tstEpicsMotor(sim_pv, name='epicsmotor', settle_time=0.1,
                       timeout=10.0)
     print('epicsmotor', m)
-    m.wait_for_connection()
     return m
 
 
@@ -42,6 +41,7 @@ def test_timeout(motor):
 
 
 def test_connected(motor):
+    motor.wait_for_connection()
     assert motor.connected
 
 

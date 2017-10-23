@@ -13,13 +13,12 @@ import numpy as np
 import epics
 
 from ophyd.signal import (Signal, EpicsSignal, EpicsSignalRO, DerivedSignal)
-from ophyd.utils import ReadOnlyError
+from ophyd.utils import ReadOnlyError, DisconnectedError
 from ophyd.status import wait
 
 from .conftest import (FakeEpicsWaveform, using_fake_epics_pv,
                        using_fake_epics_waveform)
 logger = logging.getLogger(__name__)
-
 
 
 @using_fake_epics_pv
@@ -260,7 +259,10 @@ def test_no_connection():
 
     sig = EpicsSignal('does_not_connect')
     pytest.raises(TimeoutError, sig.put, 0.0)
+
+    sig = EpicsSignal('does_not_connect')
     pytest.raises(TimeoutError, sig.get)
+    pytest.raises(DisconnectedError, sig.get)
 
     sig = EpicsSignal('connects', write_pv='does_not_connect')
     pytest.raises(TimeoutError, sig.wait_for_connection)
@@ -419,6 +421,13 @@ def test_epicssignal_set(put_complete):
     # keep the axis in position
     st = sim_pv.set(start_pos)
     wait(st)
+
+
+def test_wait_once():
+    # Should always work and never raise DisconnectedError
+    sig = EpicsSignal(write_pv='XF:31IDA-OP{Tbl-Ax:X1}Mtr.VAL',
+                      read_pv='XF:31IDA-OP{Tbl-Ax:X1}Mtr.RBV')
+    sig.precision
 
 
 def test_epicssignal_alarm_status():

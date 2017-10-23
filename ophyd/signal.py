@@ -2,6 +2,7 @@
 import logging
 import time
 import threading
+import functools
 
 import numpy as np
 import epics
@@ -64,6 +65,7 @@ class Signal(OphydObject):
 
         self._timestamp = timestamp
         self._set_thread = None
+        self._has_waited = False
         self._tolerance = tolerance
         # self.tolerance is a property
         self.rtolerance = rtolerance
@@ -78,7 +80,7 @@ class Signal(OphydObject):
 
     def wait_for_connection(self, timeout=0.0):
         '''Wait for the underlying signals to initialize or connect'''
-        pass
+        self._has_waited = True
 
     @property
     def timestamp(self):
@@ -322,6 +324,21 @@ class DerivedSignal(Signal):
         yield ('derived_from', self._derived_from)
 
 
+def wait_once(fcn):
+    '''Decorator to wait_for_connection once per signal object
+
+    Gives the signal a chance to ensure its resources are ready to be accessed.
+    These resources are expected to be set up in parallel during or after the
+    __init__ statement.
+    '''
+    @functools.wraps(fcn)
+    def wrapper(self, *args, **kwargs):
+        if not self.connected and not self._has_waited:
+            self.wait_for_connection()
+        return fcn(self, *args, **kwargs)
+    return wrapper
+
+
 class EpicsSignalBase(Signal):
     '''A read-only EpicsSignal -- that is, one with no `write_pv`
 
@@ -387,6 +404,7 @@ class EpicsSignalBase(Signal):
         return self._string
 
     @property
+    @wait_once
     @raise_if_disconnected
     def precision(self):
         '''The precision of the read PV, as reported by EPICS'''
@@ -394,6 +412,7 @@ class EpicsSignalBase(Signal):
             return self._read_pv.precision
 
     @property
+    @wait_once
     @raise_if_disconnected
     def enum_strs(self):
         """List of strings if PV is an enum type"""
@@ -401,6 +420,7 @@ class EpicsSignalBase(Signal):
             return self._read_pv.enum_strs
 
     @property
+    @wait_once
     @raise_if_disconnected
     def alarm_status(self):
         """PV status"""
@@ -411,6 +431,7 @@ class EpicsSignalBase(Signal):
             return AlarmStatus(status)
 
     @property
+    @wait_once
     @raise_if_disconnected
     def alarm_severity(self):
         """PV alarm severity"""
@@ -436,6 +457,7 @@ class EpicsSignalBase(Signal):
         with self._lock:
             old_instance.clear_callbacks()
             was_connected = old_instance.connected
+            self._has_waited = False
 
             new_instance = epics.PV(old_instance.pvname,
                                     form=old_instance.form, **pv_kw)
@@ -467,6 +489,8 @@ class EpicsSignalBase(Signal):
         return super().subscribe(callback, event_type=event_type, run=run)
 
     def wait_for_connection(self, timeout=1.0):
+        super().wait_for_connection(timeout=timeout)
+
         if self._read_pv.connected:
             return
 
@@ -476,6 +500,7 @@ class EpicsSignalBase(Signal):
                                    self._read_pv.pvname)
 
     @property
+    @wait_once
     @raise_if_disconnected
     def timestamp(self):
         '''Timestamp of readback PV, according to EPICS'''
@@ -502,6 +527,7 @@ class EpicsSignalBase(Signal):
         return self._read_pv.connected
 
     @property
+    @wait_once
     @raise_if_disconnected
     def limits(self):
         '''The read PV limits'''
@@ -597,6 +623,7 @@ class EpicsSignalBase(Signal):
 
         return {self.name: desc}
 
+    @wait_once
     @raise_if_disconnected
     def read(self):
         """Read the signal and format for data collection
@@ -725,6 +752,7 @@ class EpicsSignal(EpicsSignalBase):
                                        self._write_pv.pvname)
 
     @property
+    @wait_once
     @raise_if_disconnected
     def tolerance(self):
         '''The tolerance of the write PV, as reported by EPICS
@@ -753,6 +781,7 @@ class EpicsSignal(EpicsSignalBase):
         self._tolerance = tolerance
 
     @property
+    @wait_once
     @raise_if_disconnected
     def setpoint_ts(self):
         '''Timestamp of setpoint PV, according to EPICS'''
@@ -768,6 +797,7 @@ class EpicsSignal(EpicsSignalBase):
         return self._write_pv.pvname
 
     @property
+    @wait_once
     @raise_if_disconnected
     def setpoint_alarm_status(self):
         """Setpoint PV status"""
@@ -778,6 +808,7 @@ class EpicsSignal(EpicsSignalBase):
             return AlarmStatus(status)
 
     @property
+    @wait_once
     @raise_if_disconnected
     def setpoint_alarm_severity(self):
         """Setpoint PV alarm severity"""
@@ -800,6 +831,7 @@ class EpicsSignal(EpicsSignalBase):
         return self._read_pv.connected and self._write_pv.connected
 
     @property
+    @wait_once
     @raise_if_disconnected
     def limits(self):
         '''The write PV limits'''
@@ -831,6 +863,7 @@ class EpicsSignal(EpicsSignalBase):
             raise LimitError('Value {} outside of range: [{}, {}]'
                              .format(value, low_limit, high_limit))
 
+    @wait_once
     @raise_if_disconnected
     def get_setpoint(self, **kwargs):
         '''Get the setpoint value (use only if the setpoint PV and the readback

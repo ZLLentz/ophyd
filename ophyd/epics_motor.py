@@ -6,7 +6,7 @@ from .signal import (EpicsSignal, EpicsSignalRO)
 from .utils import DisconnectedError
 from .utils.epics_pvs import (raise_if_disconnected, AlarmSeverity)
 from .positioner import PositionerBase
-from .device import (Device, Component as Cpt)
+from .device import (Device, Component as Cpt, wait_once)
 from .status import wait as status_wait
 from enum import Enum
 
@@ -84,24 +84,20 @@ class EpicsMotor(Device, PositionerBase):
         self._hints = None
 
     @property
-    @raise_if_disconnected
     def precision(self):
         '''The precision of the readback PV, as reported by EPICS'''
         return self.user_readback.precision
 
     @property
-    @raise_if_disconnected
     def egu(self):
         '''The engineering units (EGU) for a position'''
         return self.motor_egu.get()
 
     @property
-    @raise_if_disconnected
     def limits(self):
         return self.user_setpoint.limits
 
     @property
-    @raise_if_disconnected
     def moving(self):
         '''Whether or not the motor is moving
 
@@ -111,11 +107,11 @@ class EpicsMotor(Device, PositionerBase):
         '''
         return bool(self.motor_is_moving.get(use_monitor=False))
 
-    @raise_if_disconnected
     def stop(self, *, success=False):
         self.motor_stop.put(1, wait=False)
         super().stop(success=success)
 
+    @wait_once
     @raise_if_disconnected
     def move(self, position, wait=True, **kwargs):
         '''Move to a specified position, optionally waiting for motion to
@@ -161,6 +157,7 @@ class EpicsMotor(Device, PositionerBase):
         return status
 
     @property
+    @wait_once
     @raise_if_disconnected
     def position(self):
         '''The current position of the motor in its engineering units
@@ -171,6 +168,7 @@ class EpicsMotor(Device, PositionerBase):
         '''
         return self._position
 
+    @wait_once
     @raise_if_disconnected
     def set_current_position(self, pos):
         '''Configure the motor user position to the given value
@@ -185,6 +183,7 @@ class EpicsMotor(Device, PositionerBase):
         self.user_setpoint.put(pos, wait=True)
         self.set_use_switch.put(0, wait=True)
 
+    @wait_once
     @raise_if_disconnected
     def home(self, direction, wait=True, **kwargs):
         '''Perform the default homing function in the desired direction

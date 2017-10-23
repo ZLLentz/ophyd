@@ -1,6 +1,7 @@
 import time as ttime
 import logging
 import textwrap
+import functools
 from enum import Enum
 from collections import (OrderedDict, namedtuple)
 import warnings
@@ -1089,3 +1090,21 @@ class Device(BlueskyInterface, OphydObject, metaclass=ComponentMeta):
 
         yield ('read_attrs', self.read_attrs)
         yield ('configuration_attrs', self.configuration_attrs)
+
+
+def wait_once(fcn):
+    '''Decorator to wait_for_connection once per device object
+
+    Gives the device a chance to ensure its resources are ready to be accessed.
+    These resources are expected to be set up in parallel during or after the
+    __init__ statement.
+
+    Signals are expected to wait themselves, so this handles the case where
+    many signals need to be ensured ready before entering a method.
+    '''
+    @functools.wraps(fcn)
+    def wrapper(self, *args, **kwargs):
+        if not self.connected and not self._has_waited:
+            self.wait_for_connection(all_signals=True)
+        return fcn(self, *args, **kwargs)
+    return wrapper

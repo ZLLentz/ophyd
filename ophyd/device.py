@@ -129,9 +129,6 @@ class Component:
         else:
             cpt_inst = self.cls(parent=instance, **kwargs)
 
-        if self.lazy and hasattr(self.cls, 'wait_for_connection'):
-            cpt_inst.wait_for_connection()
-
         return cpt_inst
 
     def make_docstring(self, parent_class):

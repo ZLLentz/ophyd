@@ -538,6 +538,8 @@ class EpicsSignalBase(Signal):
             pv.get_ctrlvars()
             return (pv.lower_ctrl_limit, pv.upper_ctrl_limit)
 
+    @wait_once
+    @raise_if_disconnected
     def get(self, *, as_string=None, connection_timeout=1.0, **kwargs):
         '''Get the readback value through an explicit call to EPICS
 
@@ -566,11 +568,6 @@ class EpicsSignalBase(Signal):
             as_string = self._string
 
         with self._lock:
-            if not self._read_pv.connected:
-                if not self._read_pv.wait_for_connection(connection_timeout):
-                    raise TimeoutError('Failed to connect to %s' %
-                                       self._read_pv.pvname)
-
             ret = self._read_pv.get(as_string=as_string, **kwargs)
 
         if as_string:
@@ -891,6 +888,8 @@ class EpicsSignal(EpicsSignalBase):
                            old_value=old_value, value=value,
                            timestamp=self._setpoint_ts, **kwargs)
 
+    @wait_once
+    @raise_if_disconnected
     def put(self, value, force=False, connection_timeout=1.0,
             use_complete=None, **kwargs):
         '''Using channel access, set the write PV to `value`.
@@ -913,11 +912,6 @@ class EpicsSignal(EpicsSignalBase):
             self.check_value(value)
 
         with self._lock:
-            if not self._write_pv.connected:
-                if not self._write_pv.wait_for_connection(connection_timeout):
-                    raise TimeoutError('Failed to connect to %s' %
-                                       self._write_pv.pvname)
-
             if use_complete is None:
                 use_complete = self._put_complete
 
@@ -934,6 +928,8 @@ class EpicsSignal(EpicsSignalBase):
                            old_value=old_value, value=value,
                            timestamp=self.timestamp, **kwargs)
 
+    @wait_once
+    @raise_if_disconnected
     def set(self, value, *, timeout=None, settle_time=None):
         '''Set is like `EpicsSignal.put`, but is here for bluesky compatibility
 

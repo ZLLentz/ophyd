@@ -48,10 +48,7 @@ class FakeEpicsPV(object):
         self._thread.daemon = True
         self._thread.start()
 
-        # callbacks mechanism copied from pyepics
-        # ... but tweaked with a weakvaluedictionary so PV objects get
-        # destructed
-        self.callbacks = weakref.WeakValueDictionary()
+        self.callbacks = {}
 
         if callback:
             self.add_callback(callback)

@@ -94,17 +94,19 @@ class FakeEpicsPV(object):
         last_value = None
 
         while self._running:
+            do_callbacks = False
             with self._lock:
                 if self._update:
                     self._value = random.choice(self.fake_values)
 
                 if self._value != last_value:
                     sys.stdout.flush()
-                    self.run_callbacks()
+                    do_callbacks = True
                     last_value = self._value
 
-                time.sleep(self._update_rate)
-
+            if do_callbacks:
+                self.run_callbacks()
+            time.sleep(self._update_rate)
             time.sleep(0.01)
 
     @property
@@ -187,7 +189,6 @@ class FakeEpicsPV(object):
     def get(self, as_string=False, use_numpy=False,
             use_monitor=False):
         if as_string:
-
             if isinstance(self.value, list):
                 if self.enum_strs:
                     return [self.enum_strs[_] for _ in self.value]

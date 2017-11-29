@@ -807,7 +807,7 @@ class Device(BlueskyInterface, OphydObject, metaclass=ComponentMeta):
         timeout : float or None
             Overall timeout
         '''
-        self.connect(all_signals=all_signals)
+        signals = self.connect(all_signals=all_signals)
 
         t0 = ttime.time()
         while timeout is None or (ttime.time() - t0) < timeout:
@@ -827,6 +827,11 @@ class Device(BlueskyInterface, OphydObject, metaclass=ComponentMeta):
         ----------
         all_signals : bool, optional
             Connect all signals (including lazy ones)
+
+        Returns
+        -------
+        signals : list
+            All signals that we've attempted to instantiate and connect
         '''
         names = [attr for attr, cpt in self._sig_attrs.items()
                  if not cpt.lazy or all_signals]
@@ -841,6 +846,7 @@ class Device(BlueskyInterface, OphydObject, metaclass=ComponentMeta):
                     sig.connect(all_signals=True)
                 except (TypeError, AttributeError):
                     pass
+        return signals
 
     def _get_unconnected(self):
         '''Yields all of the signal pvnames or prefixes that are unconnected

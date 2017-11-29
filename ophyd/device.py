@@ -826,7 +826,7 @@ class Device(BlueskyInterface, OphydObject, metaclass=ComponentMeta):
         Parameters
         ----------
         all_signals : bool, optional
-            Wait for all signals to connect (including lazy ones)
+            Connect all signals (including lazy ones)
         '''
         names = [attr for attr, cpt in self._sig_attrs.items()
                  if not cpt.lazy or all_signals]

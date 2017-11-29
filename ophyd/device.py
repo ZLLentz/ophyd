@@ -812,6 +812,13 @@ class Device(BlueskyInterface, OphydObject, metaclass=ComponentMeta):
 
         # Instantiate first to kickoff connection process
         signals = [getattr(self, name) for name in names]
+        # Make sure we recursively kick off subdevices
+        for sig in signals:
+            try:
+                sig.wait_for_connection(all_signals=all_signals,
+                                        timeout=timeout)
+            except TypeError:
+                pass
 
         t0 = ttime.time()
         while timeout is None or (ttime.time() - t0) < timeout:

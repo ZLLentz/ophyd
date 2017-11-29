@@ -834,11 +834,13 @@ class Device(BlueskyInterface, OphydObject, metaclass=ComponentMeta):
         # Instantiate to kickoff connection process
         signals = [getattr(self, name) for name in names]
 
-        for sig in signals:
-            try:
-                sig.connect(all_signals=all_signals)
-            except (TypeError, AttributeError):
-                pass
+        # This block is redundant if all_signals=False
+        if all_signals:
+            for sig in signals:
+                try:
+                    sig.connect(all_signals=True)
+                except (TypeError, AttributeError):
+                    pass
 
     def _get_unconnected(self):
         '''Yields all of the signal pvnames or prefixes that are unconnected

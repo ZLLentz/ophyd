@@ -1,5 +1,6 @@
 import collections
 import contextlib
+import copy
 import functools
 import inspect
 import itertools
@@ -1495,6 +1496,51 @@ class Device(BlueskyInterface, OphydObject):
 # out-of-the-box for this scenario.
 if not hasattr(Device, '_sig_attrs'):
     Device._initialize_device()
+
+
+class DeviceOverlay:
+    """
+    Class to make a customizable subclass of another device.
+
+    All attributes of the components can be modified via simple attribute
+    access. This can be used to customize things like device kind.
+    """
+    def __new__(self, cls, *args, **kwargs):
+        if self is DeviceOverlay:
+            # Magic to make this class return a class instead of an instance
+            return type(cls.__name__ + 'Overlay', (DeviceOverlay, cls), {})
+        else:
+            # Normal path for the overlayed subclass
+            return super().__new__(self)
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        for attr, cpt in list(cls._sig_attrs.items()):
+            # Do not mutate the original class's components
+            copy_cpt = copy.deepcopy(cpt)
+            if issubclass(cpt.cls, Device):
+                # For devices, recursively use overlays
+                sub_overlay = DeviceOverlay(cpt.cls)
+                copy_cpt.cls = sub_overlay
+                setattr(cls, attr, sub_overlay)
+            else:
+                # Can edit these directly as-is
+                setattr(cls, attr, copy_cpt)
+            # Overwrite with the overlayed components
+            cls._sig_attrs[attr] = copy_cpt
+
+    @classmethod
+    def set_all_kinds(cls, kind):
+        """Set kind on all components."""
+        cls.overlay_all('kind', kind)
+
+    @classmethod
+    def overlay_all(cls, attr, value):
+        """Set attr on all components."""
+        for attr, cpt in cls._sig_attrs:
+            setattr(cpt, attr, value)
+            if isinstance(cpt.cls, DeviceOverlay):
+                cpt.cls.overlay_all(attr, value)
 
 
 @contextlib.contextmanager

@@ -113,8 +113,7 @@ class Component:
         self.suffix = suffix
         self.doc = doc
         self.trigger_value = trigger_value  # TODO discuss
-        self.kind = (Kind[kind.lower()] if isinstance(kind, str)
-                     else Kind(kind))
+        self.kind = kind
         if add_prefix is None:
             add_prefix = ('suffix', 'write_pv')
         self.add_prefix = tuple(add_prefix)
@@ -124,6 +123,15 @@ class Component:
         self.attr = attr_name
         if self.doc is None:
             self.doc = self.make_docstring(owner)
+
+    @property
+    def kind(self):
+        return self._kind
+
+    @kind.setter
+    def kind(self, kind):
+        self._kind = (Kind[kind.lower()] if isinstance(kind, str)
+                      else Kind(kind))
 
     @property
     def is_device(self):
@@ -1503,11 +1511,13 @@ class DeviceOverlay:
     Class to make a customizable subclass of another device.
 
     All attributes of the components can be modified via simple attribute
-    access. This can be used to customize things like device kind.
+    access. This can be used to customize things like device kind, or even
+    the pv suffix of a specific subcomponent.
     """
-    def __new__(self, cls, *args, **kwargs):
+    def __new__(self, *args, **kwargs):
         if self is DeviceOverlay:
             # Magic to make this class return a class instead of an instance
+            cls = args[0]
             return type(cls.__name__ + 'Overlay', (DeviceOverlay, cls), {})
         else:
             # Normal path for the overlayed subclass
@@ -1515,31 +1525,34 @@ class DeviceOverlay:
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        for attr, cpt in list(cls._sig_attrs.items()):
-            # Do not mutate the original class's components
+        for cpt_name, cpt in list(cls._sig_attrs.items()):
+            # Copy and replace the top-level components
             copy_cpt = copy.deepcopy(cpt)
-            if issubclass(cpt.cls, Device):
-                # For devices, recursively use overlays
+            cls._sig_attrs[cpt_name] = copy_cpt
+            setattr(cls, cpt_name, copy_cpt)
+            # Subdevices are also DeviceOverlays
+            if cpt.is_device:
                 sub_overlay = DeviceOverlay(cpt.cls)
                 copy_cpt.cls = sub_overlay
-                setattr(cls, attr, sub_overlay)
-            else:
-                # Can edit these directly as-is
-                setattr(cls, attr, copy_cpt)
-            # Overwrite with the overlayed components
-            cls._sig_attrs[attr] = copy_cpt
+                # Patch on subcomponents for easy overlay modifications
+                for sub_cpt_name, sub_cpt in sub_overlay._sig_attrs.items():
+                    setattr(copy_cpt, sub_cpt_name, sub_cpt)
 
     @classmethod
     def set_all_kinds(cls, kind):
-        """Set kind on all components."""
+        """
+        Set kind on all components.
+
+        This can be used to "clear" an overlay before assigning custom kinds.
+        """
         cls.overlay_all('kind', kind)
 
     @classmethod
     def overlay_all(cls, attr, value):
         """Set attr on all components."""
-        for attr, cpt in cls._sig_attrs:
+        for cpt in cls._sig_attrs.values():
             setattr(cpt, attr, value)
-            if isinstance(cpt.cls, DeviceOverlay):
+            if issubclass(cpt.cls, DeviceOverlay):
                 cpt.cls.overlay_all(attr, value)
 
 

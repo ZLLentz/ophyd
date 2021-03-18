@@ -703,6 +703,14 @@ class Device(BlueskyInterface, OphydObject):
     # connect before returning control to the user
     lazy_wait_for_connection = True
 
+    jinja_repr = '''
+    {{ obj.name }}
+    {{ '-' * obj.name|length }}
+    {% for cpt_name in obj.component_names %}
+      {{ obj[cpt_name].jinja_render() }}
+    {% endfor %}
+    '''
+
     def __init__(self, prefix='', *, name, kind=None, read_attrs=None,
                  configuration_attrs=None, parent=None, **kwargs):
         self._destroyed = False

@@ -2,8 +2,11 @@ from enum import IntFlag
 import functools
 from itertools import count
 from logging import LoggerAdapter, getLogger
+from textwrap import dedent
 import time
 import weakref
+
+import jinja2
 
 from .log import control_layer_logger
 
@@ -172,6 +175,10 @@ class OphydObject:
         self._cb_count = count()
         self.log = LoggerAdapter(getLogger('ophyd.objects'), {'ophyd_object_name': name})
         self.control_layer_log = LoggerAdapter(control_layer_logger, {'ophyd_object_name': name})
+        try:
+            self.jinja_repr = dedent(self.jinja_repr)
+        except AttributeError:
+            pass
 
         if not self.__any_instantiated:
             self.log.info("first instance of OphydObject: id=%s", id(self))
@@ -576,3 +583,26 @@ class OphydObject:
         '''
         kwargs = dict(self._repr_info())
         return ((), kwargs)
+
+    def _repr_pretty_(self, pp, cycle):
+        """
+        Set pretty-printing to render our jinja template.
+
+        This is the text that will be shown in the IPython terminal when
+        this object is returned. This is a convenient place to show general
+        status information about our ophyd object.
+        """
+        try:
+            status_text = self.jinja_render()
+        except Exception:
+            self.log.debug(
+                'Error showing status information.',
+                exc_info=True,
+                )
+            status_text = self.__repr__()
+
+        pp.text(status_text)
+
+    def jinja_render(self):
+        template = jinja2.Template(self.jinja_repr, trim_blocks=True)
+        return template.render(obj=self)

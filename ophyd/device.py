@@ -816,6 +816,9 @@ class Device(BlueskyInterface, OphydObject):
         if configuration_attrs is not None:
             self.configuration_attrs = list(configuration_attrs)
 
+        self.init_components()
+
+    def init_components(self):
         with do_not_wait_for_lazy_connection(self):
             # Instantiate non-lazy signals and lazy signals with subscriptions
             [getattr(self, attr) for attr, cpt in self._sig_attrs.items()
